@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Crypto Task App</title>
-    <!-- Stylesheets, Fonts, SDKs -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -15,7 +14,6 @@
 <body>
 
     <div id="app-container">
-        <!-- Home Tab -->
         <div id="home" class="tab-content active">
             <div class="header">
                 <div class="user-info">
@@ -56,7 +54,6 @@
             </div>
         </div>
 
-        <!-- Earn Tab -->
         <div id="earn" class="tab-content">
             <h2 class="page-title">Earn Rewards</h2>
             <div class="earn-task-card">
@@ -74,7 +71,6 @@
             </div>
         </div>
         
-        <!-- Withdraw Tab -->
         <div id="withdraw" class="tab-content">
             <h2 class="page-title">Withdraw Funds</h2>
             <div class="available-balance-banner">
@@ -101,7 +97,6 @@
                 </button>
             </div>
 
-            <!-- Transaction History Section -->
             <div class="transaction-history">
                 <h3 class="section-title">Recent Withdrawals</h3>
                 <div id="history-list">
@@ -110,7 +105,6 @@
             </div>
         </div>
 
-        <!-- Profile Tab -->
         <div id="profile" class="tab-content">
             <div class="profile-header">
                 <img src="https://i.pravatar.cc/150" alt="User Profile" class="profile-pic-large">
@@ -135,7 +129,6 @@
             </div>
         </div>
         
-        <!-- Modals -->
         <button class="refer-fab" onclick="openReferModal()"><i class="fas fa-gift"></i></button>
         <div id="refer-modal" class="modal-overlay">
             <div class="modal-content">
@@ -143,7 +136,7 @@
                 <h2 class="modal-title">Refer Friends, Earn 10% More!</h2>
                 <p class="modal-subtitle">Earn a <span class="highlight">10% commission</span> from your friends' earnings!</p>
                 <div class="referral-link-container">
-                    <input type="text" id="referral-link" value="https://t.me/yourapp?start=a042581f4" readonly>
+                    <input type="text" id="referral-link" readonly>
                     <button onclick="copyReferralLink(this)"><i class="fas fa-copy"></i></button>
                 </div>
                 <div class="referral-stats">
@@ -161,7 +154,6 @@
         </div>
     </div>
     
-    <!-- Navigation Bar -->
     <nav class="nav-bar">
         <a href="#" class="nav-item active" onclick="showTab('home', this)"><i class="fas fa-home"></i><span>Home</span></a>
         <a href="#" class="nav-item" onclick="showTab('earn', this)"><i class="fas fa-coins"></i><span>Earn</span></a>
@@ -169,7 +161,6 @@
         <a href="#" class="nav-item" onclick="showTab('profile', this)"><i class="fas fa-user"></i><span>Profile</span></a>
     </nav>
     
-    <!-- Scripts -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js" defer></script>
