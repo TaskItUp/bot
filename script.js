@@ -20,6 +20,7 @@ const db = firebase.firestore();
 let userState = {};
 let telegramUserId = null;
 let isInitialized = false;
+let earningListenerUnsub = null; // to avoid duplicate listeners
 
 const DAILY_TASK_LIMIT = 40;
 const REFERRAL_COMMISSION_RATE = 0.10;
@@ -77,6 +78,7 @@ function initializeApp(tgUser) {
 
         if (!isInitialized) {
             setupEarningListener();
+            setupNavigation();
             updateUI();
             isInitialized = true;
         }
@@ -87,10 +89,10 @@ function initializeApp(tgUser) {
 // Referral Commission
 // =======================
 function setupEarningListener() {
+    if (earningListenerUnsub) earningListenerUnsub(); // remove old listener
     const userRef = db.collection('users').doc(telegramUserId);
 
-    // Listen for balance changes to trigger referral commissions
-    userRef.onSnapshot(async (doc) => {
+    earningListenerUnsub = userRef.onSnapshot(async (doc) => {
         if (!doc.exists) return;
         const oldBalance = userState.balance || 0;
         const newBalance = doc.data().balance || 0;
@@ -112,6 +114,25 @@ function setupEarningListener() {
         userState = doc.data();
         updateUI();
     });
+}
+
+// =======================
+// Navigation Buttons
+// =======================
+function setupNavigation() {
+    const sections = document.querySelectorAll('.page-section');
+    const showSection = (id) => {
+        sections.forEach(s => s.style.display = "none");
+        document.getElementById(id).style.display = "block";
+    };
+
+    document.getElementById("btn-home").addEventListener("click", () => showSection("home-section"));
+    document.getElementById("btn-earn").addEventListener("click", () => showSection("earn-section"));
+    document.getElementById("btn-withdraw").addEventListener("click", () => showSection("withdraw-section"));
+    document.getElementById("btn-profile").addEventListener("click", () => showSection("profile-section"));
+
+    // Show home by default
+    showSection("home-section");
 }
 
 // =======================
@@ -140,6 +161,17 @@ function updateUI() {
     document.getElementById('refer-count').textContent = userState.referrals?.length || 0;
     document.getElementById('refer-earnings').textContent = Math.floor(userState.referralEarnings || 0);
     document.getElementById('referral-link').value = `https://t.me/TaskItUpBot?start=${telegramUserId}`;
+
+    // If you want to list referred users
+    const referralListEl = document.getElementById('referral-list');
+    if (referralListEl) {
+        referralListEl.innerHTML = "";
+        (userState.referrals || []).forEach(r => {
+            const li = document.createElement("li");
+            li.textContent = r;
+            referralListEl.appendChild(li);
+        });
+    }
 }
 
 // =======================
