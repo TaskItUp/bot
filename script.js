@@ -1,92 +1,122 @@
-// --- [DATABASE & APP INITIALIZATION] ---
-
-// YOUR PERSONAL FIREBASE CONFIGURATION IS NOW INCLUDED
+// =======================
+// Firebase Config
+// =======================
 const firebaseConfig = {
-  apiKey: "AIzaSyB1TYSc2keBepN_cMV9oaoHFRdcJaAqG_g",
-  authDomain: "taskup-9ba7b.firebaseapp.com",
-  projectId: "taskup-9ba7b",
-  storageBucket: "taskup-9ba7b.appspot.com",
-  messagingSenderId: "319481101196",
-  appId: "1:319481101196:web:6cded5be97620d98d974a9",
-  measurementId: "G-JNNLG1E49L"
+    apiKey: "AIzaSyB1TYSc2keBepN_cMV9oaoHFRdcJaAqG_g",
+    authDomain: "taskup-9ba7b.firebaseapp.com",
+    projectId: "taskup-9ba7b",
+    storageBucket: "taskup-9ba7b.appspot.com",
+    messagingSenderId: "319481101196",
+    appId: "1:319481101196:web:6cded5be97620d98d974a9",
+    measurementId: "G-JNNLG1E49L"
 };
 
-// Initialize Firebase using the compat libraries
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// --- [GLOBAL STATE & CONSTANTS] ---
+// =======================
+// Global State
+// =======================
 let userState = {};
 let telegramUserId = null;
 let isInitialized = false;
-const TELEGRAM_BOT_USERNAME = "TaskItUpBot";
 
 const DAILY_TASK_LIMIT = 40;
-const AD_REWARD = 250;
 const REFERRAL_COMMISSION_RATE = 0.10;
-const WITHDRAWAL_MINIMUMS = {
-    binancepay: 10000 
-};
 
-// --- [CORE APP LOGIC] ---
+// =======================
+// Initialize App
+// =======================
 function initializeApp(tgUser) {
     telegramUserId = tgUser ? tgUser.id.toString() : getFakeUserIdForTesting();
-
-    console.log(`Initializing app for User ID: ${telegramUserId}`);
     const userRef = db.collection('users').doc(telegramUserId);
 
     userRef.onSnapshot(async (doc) => {
         if (!doc.exists) {
-            console.log('New user detected. Creating account...');
-            const referrerId =
+            console.log("New user detected. Creating account...");
+            const startParam =
                 tgUser?.start_param?.toString() ||
                 new URLSearchParams(window.location.search).get('ref') ||
                 null;
 
-            const newUserState = {
+            const newUserData = {
                 username: tgUser ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : "User",
                 telegramUsername: tgUser ? `@${tgUser.username || tgUser.id}` : `@test_user`,
                 profilePicUrl: generatePlaceholderAvatar(telegramUserId),
-                balance: 0, tasksCompletedToday: 0, lastTaskTimestamp: null, totalEarned: 0,
-                totalAdsViewed: 0, totalRefers: 0, joinedBonusTasks: [],
-                referredBy: referrerId || null,
-                referralEarnings: 0
+                balance: 0,
+                tasksCompletedToday: 0,
+                totalEarned: 0,
+                totalAdsViewed: 0,
+                totalRefers: 0,
+                referralEarnings: 0,
+                joined: firebase.firestore.FieldValue.serverTimestamp(),
+                referrals: [],
+                referredBy: startParam || null
             };
 
-            if (referrerId) {
-                const referrerRef = db.collection('users').doc(referrerId);
-                try {
-                    await db.runTransaction(async (transaction) => {
-                        const referrerDoc = await transaction.get(referrerRef);
-                        if (!referrerDoc.exists) throw "Referrer not found!";
-                        
-                        console.log("Crediting referrer instantly upon new user creation.");
-                        transaction.update(referrerRef, {
+            // Handle referral
+            if (startParam && startParam !== telegramUserId) {
+                const referrerRef = db.collection("users").doc(startParam);
+                const refSnap = await referrerRef.get();
+
+                if (refSnap.exists) {
+                    let refData = refSnap.data();
+                    if (!refData.referrals?.includes(telegramUserId)) {
+                        await referrerRef.update({
+                            referrals: firebase.firestore.FieldValue.arrayUnion(telegramUserId),
                             totalRefers: firebase.firestore.FieldValue.increment(1)
                         });
-                        transaction.set(userRef, newUserState);
-                    });
-                } catch (error) {
-                    console.error("Referral transaction failed, creating user normally.", error);
-                    await userRef.set(newUserState);
+                    }
                 }
-            } else {
-                await userRef.set(newUserState);
             }
+
+            await userRef.set(newUserData);
         } else {
-            console.log('User data updated in real-time.');
             userState = doc.data();
         }
-        
+
         if (!isInitialized) {
-            setupTaskButtonListeners();
-            listenForWithdrawalHistory();
+            setupEarningListener();
+            updateUI();
             isInitialized = true;
         }
-        updateUI();
-    }, (error) => console.error("Error listening to user document:", error));
+    });
 }
 
+// =======================
+// Referral Commission
+// =======================
+function setupEarningListener() {
+    const userRef = db.collection('users').doc(telegramUserId);
+
+    // Listen for balance changes to trigger referral commissions
+    userRef.onSnapshot(async (doc) => {
+        if (!doc.exists) return;
+        const oldBalance = userState.balance || 0;
+        const newBalance = doc.data().balance || 0;
+
+        if (newBalance > oldBalance) {
+            const earned = newBalance - oldBalance;
+            if (userState.referredBy) {
+                const commission = Math.floor(earned * REFERRAL_COMMISSION_RATE);
+                const referrerRef = db.collection('users').doc(userState.referredBy);
+
+                await referrerRef.update({
+                    balance: firebase.firestore.FieldValue.increment(commission),
+                    referralEarnings: firebase.firestore.FieldValue.increment(commission)
+                });
+
+                console.log(`Commission of ${commission} PEPE sent to referrer ${userState.referredBy}`);
+            }
+        }
+        userState = doc.data();
+        updateUI();
+    });
+}
+
+// =======================
+// Helpers
+// =======================
 function getFakeUserIdForTesting() {
     let storedId = localStorage.getItem('localAppUserId');
     if (storedId) return storedId;
@@ -98,48 +128,23 @@ function generatePlaceholderAvatar(userId) {
     return `https://i.pravatar.cc/150?u=${userId}`;
 }
 
-// --- [UI UPDATE FUNCTIONS] ---
+// =======================
+// UI Update
+// =======================
 function updateUI() {
-    const balanceString = Math.floor(userState.balance || 0).toLocaleString();
-    const totalEarnedString = Math.floor(userState.totalEarned || 0).toLocaleString();
-    const referralEarningsString = (userState.referralEarnings || 0).toLocaleString();
-    const totalRefersString = (userState.totalRefers || 0).toLocaleString();
-
-    document.querySelectorAll('.profile-pic, .profile-pic-large').forEach(img => {
-        if (userState.profilePicUrl) img.src = userState.profilePicUrl;
-    });
-    document.getElementById('balance-home').textContent = balanceString;
-    document.getElementById('withdraw-balance').textContent = balanceString;
-    document.getElementById('profile-balance').textContent = balanceString;
-    document.getElementById('home-username').textContent = userState.username;
-    document.getElementById('profile-name').textContent = userState.username;
-    document.getElementById('telegram-username').textContent = userState.telegramUsername;
-    document.getElementById('ads-watched-today').textContent = userState.tasksCompletedToday || 0;
-    document.getElementById('ads-left-today').textContent = DAILY_TASK_LIMIT - (userState.tasksCompletedToday || 0);
-    const tasksCompleted = userState.tasksCompletedToday || 0;
-    document.getElementById('tasks-completed').textContent = `${tasksCompleted} / ${DAILY_TASK_LIMIT}`;
-    const progressPercentage = (tasksCompleted / DAILY_TASK_LIMIT) * 100;
-    document.getElementById('task-progress-bar').style.width = `${progressPercentage}%`;
-    const taskButton = document.getElementById('start-task-button');
-    taskButton.disabled = tasksCompleted >= DAILY_TASK_LIMIT;
-    taskButton.innerHTML = tasksCompleted >= DAILY_TASK_LIMIT
-        ? '<i class="fas fa-check-circle"></i> All tasks done'
-        : '<i class="fas fa-play-circle"></i> Watch Ad';
-    document.getElementById('earned-so-far').textContent = totalEarnedString;
-    document.getElementById('total-ads-viewed').textContent = userState.totalAdsViewed || 0;
-    document.getElementById('total-refers').textContent = totalRefersString;
-    document.getElementById('refer-earnings').textContent = referralEarningsString;
-    document.getElementById('refer-count').textContent = totalRefersString;
-    const joinedTasks = userState.joinedBonusTasks || [];
-    joinedTasks.forEach(taskId => {
-        const taskCard = document.getElementById(`task-${taskId}`);
-        if (taskCard) taskCard.classList.add('completed');
-    });
+    document.getElementById('home-username').textContent = userState.username || "User";
+    document.getElementById('balance-home').textContent = Math.floor(userState.balance || 0);
+    document.getElementById('profile-name').textContent = userState.username || "User";
+    document.getElementById('profile-balance').textContent = Math.floor(userState.balance || 0);
+    document.getElementById('total-refers').textContent = userState.referrals?.length || 0;
+    document.getElementById('refer-count').textContent = userState.referrals?.length || 0;
+    document.getElementById('refer-earnings').textContent = Math.floor(userState.referralEarnings || 0);
+    document.getElementById('referral-link').value = `https://t.me/TaskItUpBot?start=${telegramUserId}`;
 }
 
-// (rest of your original functions here — unchanged)
-
-// --- [APP ENTRY POINT] ---
+// =======================
+// App Entry
+// =======================
 document.addEventListener('DOMContentLoaded', () => {
     if (window.Telegram && window.Telegram.WebApp) {
         Telegram.WebApp.ready();
