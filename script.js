@@ -40,7 +40,10 @@ function initializeApp(tgUser) {
     userRef.onSnapshot(async (doc) => {
         if (!doc.exists) {
             console.log('New user detected. Creating account...');
-            const referrerId = tgUser?.start_param || new URLSearchParams(window.location.search).get('ref');
+            const initData = Telegram.WebApp.initData || '';
+const urlParams = new URLSearchParams(initData);
+const referrerId = urlParams.get('start_param') || new URLSearchParams(window.location.search).get('ref');
+
             
             const newUserState = {
                 username: tgUser ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : "User",
