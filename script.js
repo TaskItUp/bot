@@ -10,99 +10,83 @@ document.addEventListener('DOMContentLoaded', () => {
     const tg = window.Telegram.WebApp;
     tg.expand();
 
-    // --- DOM TEMPLATES & DYNAMIC INJECTION ---
-    const appContainer = document.getElementById('app-container');
-    const navBar = document.querySelector('.nav-bar');
-
-    // Inject HTML structure into the body. This keeps the initial HTML file clean.
-    appContainer.innerHTML = `
-        <div id="home-tab" class="tab-content"></div>
-        <div id="earn-tab" class="tab-content"></div>
-        <div id="withdraw-tab" class="tab-content"></div>
-        <div id="profile-tab" class="tab-content"></div>
-        <button class="refer-fab" id="open-refer-modal-btn"><i data-feather="gift"></i></button>
-        <div id="refer-modal" class="modal-overlay"></div>`;
-    
-    navBar.innerHTML = `
-        <a href="#" class="nav-item active" data-tab="home-tab"><i data-feather="home"></i><span>Home</span></a>
-        <a href="#" class="nav-item" data-tab="earn-tab"><i data-feather="dollar-sign"></i><span>Earn</span></a>
-        <a href="#" class="nav-item" data-tab="withdraw-tab"><i data-feather="credit-card"></i><span>Withdraw</span></a>
-        <a href="#" class="nav-item" data-tab="profile-tab"><i data-feather="user"></i><span>Profile</span></a>`;
-
     let currentUserState = {};
     let telegramUserId = null;
 
-    // --- RENDER FUNCTIONS (To build the UI dynamically) ---
+    // --- NEW: RENDER FUNCTIONS (Build the UI dynamically) ---
+    function renderAppStructure() {
+        document.getElementById('app-container').innerHTML = `
+            <div id="home-tab" class="tab-content"></div> <div id="earn-tab" class="tab-content"></div>
+            <div id="withdraw-tab" class="tab-content"></div> <div id="profile-tab" class="tab-content"></div>
+            <button class="refer-fab" id="open-refer-modal-btn" style="display: none;"><i data-feather="gift"></i></button>
+            <div id="refer-modal" class="modal-overlay"></div>`;
+        document.querySelector('.nav-bar').innerHTML = `
+            <a href="#" class="nav-item active" data-tab="home-tab"><i data-feather="home"></i><span>Home</span></a>
+            <a href="#" class="nav-item" data-tab="earn-tab"><i data-feather="dollar-sign"></i><span>Earn</span></a>
+            <a href="#" class="nav-item" data-tab="withdraw-tab"><i data-feather="credit-card"></i><span>Withdraw</span></a>
+            <a href="#" class="nav-item" data-tab="profile-tab"><i data-feather="user"></i><span>Profile</span></a>`;
+    }
+
     function renderAllTabs() {
-        document.getElementById('home-tab').innerHTML = `
-            <header class="header"><div class="user-info"><p class="welcome-text">Welcome,</p><h2 class="username" id="home-username">User</h2></div><img src="https://i.pravatar.cc/100" alt="User Profile" id="home-profile-pic" class="profile-pic"></header>
-            <div class="main-balance-card"><p>Total Balance</p><h1 class="balance-amount"><span id="balance-home">0</span> <span class="currency">PEPE</span></h1></div>
-            <div class="stats-grid"><div class="stat-box"><i data-feather="eye" class="icon"></i><p>Ads Watched (Today)</p><h3 id="ads-watched-today">0</h3></div><div class="stat-box"><i data-feather="clock" class="icon"></i><p>Ads Left Today</p><h3 id="ads-left-today">40</h3></div></div>
-            <div class="bonus-section"><h3 class="section-title">Bonus Points</h3><div class="task-card" id="task-channel_1" data-url="https://t.me/taskupofficial"><div class="task-info"><p class="task-title">Join Official Channel</p><p class="task-reward">+300 PEPE</p></div><div class="task-buttons"><button class="join-btn"><i data-feather="send"></i> Join</button><button class="verify-btn" disabled>Verify</button></div><div class="task-done"><i data-feather="check"></i> Done</div></div></div>`;
-        
+        document.getElementById('home-tab').innerHTML = `<header class="header"><div class="user-info"><p class="welcome-text">Welcome,</p><h2 class="username" id="home-username">User</h2></div><img src="https://i.pravatar.cc/100" alt="User Profile" id="home-profile-pic" class="profile-pic"></header><div class="main-balance-card"><p>Total Balance</p><h1 class="balance-amount"><span id="balance-home">0</span> <span class="currency">PEPE</span></h1></div><div class="stats-grid"><div class="stat-box"><i data-feather="eye" class="icon"></i><p>Ads Watched (Today)</p><h3 id="ads-watched-today">0</h3></div><div class="stat-box"><i data-feather="clock" class="icon"></i><p>Ads Left Today</p><h3 id="ads-left-today">40</h3></div></div><div class="bonus-section"><h3 class="section-title">Bonus Points</h3><div class="task-card" id="task-channel_1" data-url="https://t.me/taskupofficial"><div class="task-info"><p class="task-title">Join Official Channel</p><p class="task-reward">+300 PEPE</p></div><div class="task-buttons"><button class="join-btn"><i data-feather="send"></i> Join</button><button class="verify-btn" disabled>Verify</button></div><div class="task-done"><i data-feather="check"></i> Done</div></div></div>`;
         document.getElementById('earn-tab').innerHTML = `<h2 class="page-title">Earn Rewards</h2><div class="earn-task-card"><h3 class="card-title">Today's Ad Tasks</h3><div class="task-progress-info"><p>Completed: <span id="tasks-completed-text">0 / 40</span></p></div><div class="progress-bar-container"><div class="progress-bar" id="task-progress-bar"></div></div><p class="reward-info">Get <span class="reward-amount">250 PEPE</span> for each ad view.</p><button class="start-task-btn" id="watch-ad-btn"><i data-feather="play-circle"></i> Watch Ad</button></div>`;
-        
         document.getElementById('withdraw-tab').innerHTML = `<h2 class="page-title">Withdraw Funds</h2><div class="available-balance-banner">Available Balance: <span class="bold-text"><span id="withdraw-balance">0</span> PEPE</span></div><div class="withdraw-form-card"><h3 class="card-title">Request Withdrawal</h3><div class="input-group"><label for="withdraw-method">Method</label><select id="withdraw-method"><option value="binancepay">Binance Pay (Min: 10,000 PEPE)</option></select></div><div class="input-group"><label for="withdraw-amount">Amount</label><input type="number" id="withdraw-amount" placeholder="e.g., 15000"></div><div class="input-group"><label for="wallet-id">Binance ID or Email</label><input type="text" id="wallet-id" placeholder="Enter your Binance Pay ID or Email"></div><button class="submit-withdrawal-btn" id="withdraw-btn"><i data-feather="send"></i> Submit Request</button></div><div class="transaction-history"><h3 class="section-title">Recent Withdrawals</h3><div id="history-list"><p class="no-history">You have no withdrawal history yet.</p></div></div>`;
-        
         document.getElementById('profile-tab').innerHTML = `<header class="profile-header"><img src="https://i.pravatar.cc/150" alt="User Profile" id="profile-pic-large" class="profile-pic-large"><h3 id="profile-name">User</h3><p id="telegram-username" class="text-muted">@username</p><p class="profile-balance">Balance: <span id="profile-balance">0</span> PEPE</p></header><div class="profile-stats"><h3 class="section-title">Statistics</h3><div class="stat-item"><p><i data-feather="award"></i> Earned So Far</p><p class="stat-value"><span id="earned-so-far">0</span> PEPE</p></div><div class="stat-item"><p><i data-feather="tv"></i> Total Ads Viewed</p><p class="stat-value" id="total-ads-viewed">0</p></div><div class="stat-item"><p><i data-feather="users"></i> Total Referrals</p><p class="stat-value" id="total-refers">0</p></div><div class="stat-item"><p><i data-feather="gift"></i> Referral Earnings</p><p class="stat-value"><span id="refer-earnings">0</span> PEPE</p></div></div>`;
-        
         document.getElementById('refer-modal').innerHTML = `<div class="modal-content"><button class="close-btn" id="close-refer-modal-btn"><i data-feather="x"></i></button><h2 class="modal-title">Refer Friends, Earn 10% More!</h2><div class="referral-stats"><p><strong><span id="refer-count">0</span></strong> Referrals</p><p><strong><span id="popup-refer-earnings">0</span> PEPE</strong> Earned</p></div><div class="referral-link-container"><input type="text" id="referral-link" readonly><button id="copy-referral-btn"><i data-feather="copy"></i></button></div><div class="referral-requirements"><h4>How it works:</h4><ul><li><i data-feather="check-circle"></i> Your friend must join using your unique link.</li><li><i data-feather="check-circle"></i> They must open the app to count as a referral.</li></ul></div></div>`;
-        
         document.getElementById('home-tab').classList.add('active');
+        document.getElementById('open-refer-modal-btn').style.display = 'flex';
         feather.replace();
     }
     
     // --- MAIN APP LOGIC ---
     async function initializeApp(tgUser, tgInitData) {
-        renderAllTabs();
-        addEventListeners();
-        
+        console.log("Step 1: Initializing App...");
+        renderAppStructure(); // Build the basic layout first
+
         telegramUserId = tgUser ? tgUser.id.toString() : `test_${Date.now()}`;
+        console.log(`Step 2: User ID identified as ${telegramUserId}`);
         
         const { data: user, error } = await sb.from('users').select('*').eq('telegram_id', telegramUserId).single();
-        if (error && error.code !== 'PGRST116') { // PGRST116 means "no rows returned", which is expected for a new user.
-            console.error('Error fetching user:', error);
-            tg.showAlert('Could not load your profile. Please try again later.');
-            return;
-        }
+        if (error && error.code !== 'PGRST116') return console.error('FATAL: Could not fetch user data.', error);
 
         if (!user) {
-            console.log("New user detected, creating account...");
+            console.log("Step 3: New user detected. Creating account...");
             const referredBy = tgInitData.start_param || null;
             const newUser = { telegram_id: telegramUserId, first_name: tgUser?.first_name || 'Test User', username: tgUser?.username, referred_by: referredBy };
             
             const { data: createdUser, error: creationError } = await sb.from('users').insert(newUser).select().single();
-            if (creationError) {
-                console.error("Fatal error: Failed to create user account.", creationError);
-                tg.showAlert('Could not create your account. Please try restarting the app.');
-                return;
-            }
+            if (creationError) return console.error("FATAL: Failed to create user account.", creationError);
 
             currentUserState = createdUser;
             if (referredBy) {
-                console.log(`User was referred by ${referredBy}. Incrementing referrer's count.`);
+                console.log(`User was referred by ${referredBy}. Incrementing count.`);
                 await sb.rpc('increment_referrals', { user_id: referredBy });
             }
         } else {
+            console.log("Step 3: Existing user found.");
             currentUserState = user;
         }
 
+        console.log("Step 4: Rendering UI with correct user data.");
+        renderAllTabs();
         updateUI(currentUserState);
+        
+        console.log("Step 5: Attaching event listeners.");
+        addEventListeners();
+
+        console.log("Step 6: Starting real-time listeners and loading history.");
         listenForRealtimeChanges();
         loadWithdrawalHistory();
     }
     
     function listenForRealtimeChanges() {
-        sb.channel(`public:users:telegram_id=eq.${telegramUserId}`)
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
-                console.log('Realtime user update received:', payload.new);
-                currentUserState = payload.new;
-                updateUI(payload.new);
-          }).subscribe();
+        sb.channel(`public:users:telegram_id=eq.${telegramUserId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
+            console.log('Real-time update received:', payload.new);
+            currentUserState = payload.new;
+            updateUI(payload.new);
+        }).subscribe();
         
-        sb.channel(`public:withdrawals:user_id=eq.${telegramUserId}`)
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals' }, loadWithdrawalHistory)
-          .subscribe();
+        sb.channel(`public:withdrawals:user_id=eq.${telegramUserId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals' }, loadWithdrawalHistory).subscribe();
     }
 
     function updateUI(user) {
@@ -150,7 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- EVENT LISTENERS (Setup once after initial render) ---
     function addEventListeners() {
         document.querySelectorAll('.nav-item').forEach(item => item.addEventListener('click', (e) => {
             e.preventDefault(); const tabName = e.currentTarget.dataset.tab;
@@ -162,16 +145,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('open-refer-modal-btn').addEventListener('click', () => { document.getElementById('refer-modal').style.display = 'flex'; });
         document.getElementById('close-refer-modal-btn').addEventListener('click', () => { document.getElementById('refer-modal').style.display = 'none'; });
-        document.getElementById('refer-modal').addEventListener('click', (e) => { if(e.target.id === 'refer-modal') document.getElementById('refer-modal').style.display = 'none'; });
+        document.getElementById('refer-modal').addEventListener('click', (e) => { if (e.target.id === 'refer-modal') document.getElementById('refer-modal').style.display = 'none'; });
         
         document.getElementById('watch-ad-btn').addEventListener('click', async (e) => {
-            if(e.currentTarget.disabled) return;
+            if (e.currentTarget.disabled) return;
             e.currentTarget.disabled = true;
             tg.HapticFeedback.impactOccurred('light');
             const { error } = await sb.rpc('watch_ad', { user_id: telegramUserId });
             if (error) {
                 tg.showAlert('You have reached your daily ad limit.');
                 console.error("Watch ad error:", error);
+                // Re-enable button if there's an error and the limit isn't reached
+                if (currentUserState.ads_watched < DAILY_TASK_LIMIT) e.currentTarget.disabled = false;
             }
         });
 
@@ -193,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentUserState.join_bonus) { tg.showAlert("You've already claimed this bonus."); return; }
             e.currentTarget.disabled = true;
             const { error } = await sb.rpc('claim_bonus', { user_id: telegramUserId });
-            if(error) console.error("Claim bonus error:", error);
+            if (error) console.error("Claim bonus error:", error);
             else tg.showAlert('Bonus of 300 PEPE claimed!');
         });
 
@@ -202,7 +187,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const address = document.getElementById('wallet-id').value.trim();
             if (!amount || !address || amount < 10000) { tg.showAlert('Please enter a valid amount (min 10,000) and your wallet ID.'); return; }
             if (amount > currentUserState.balance) { tg.showAlert('Insufficient balance.'); return; }
-            
             const { error } = await sb.rpc('request_withdrawal', { p_user_id: telegramUserId, p_amount: amount, p_address: address });
             if (error) { tg.showAlert(error.message); console.error("Withdrawal error:", error); } 
             else { tg.showAlert('Withdrawal request submitted!'); document.getElementById('withdraw-amount').value = ''; document.getElementById('wallet-id').value = ''; }
