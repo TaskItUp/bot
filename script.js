@@ -28,23 +28,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- MAIN APP LOGIC ---
-    async function initializeApp(tgUser, tgInitData) {
+    async function initializeApp(tgInitData) {
         renderAppStructure();
 
-        telegramUserId = tgUser ? tgUser.id.toString() : `test_${Date.now()}`;
+        // --- THE CRITICAL REFERRAL LINK FIX ---
+        // Decode the initData string to get the stable user object
+        const params = new URLSearchParams(tgInitData.initData);
+        const userObj = JSON.parse(params.get('user'));
+        
+        // Use the ID from the decoded user object, which is stable and correct.
+        telegramUserId = userObj ? userObj.id.toString() : `test_${Date.now()}`;
         
         const { data: user, error } = await sb.from('users').select('*').eq('telegram_id', telegramUserId).single();
         if (error && error.code !== 'PGRST116') return console.error('FATAL: Could not fetch user.', error);
 
         if (!user) {
+            console.log("New user detected. Creating account...");
             const referredBy = tgInitData.start_param || null;
-            const newUser = { telegram_id: telegramUserId, first_name: tgUser?.first_name || 'Test User', username: tgUser?.username, referred_by: referredBy };
+            const newUser = { telegram_id: telegramUserId, first_name: userObj?.first_name || 'Test User', username: userObj?.username, referred_by: referredBy };
             
             const { data: createdUser, error: creationError } = await sb.from('users').insert(newUser).select().single();
             if (creationError) return console.error("FATAL: Could not create user.", creationError);
             currentUserState = createdUser;
-            if (referredBy) await sb.rpc('increment_referrals', { user_id: referredBy });
+            if (referredBy) {
+                console.log(`User was referred by ${referredBy}. Incrementing count.`);
+                await sb.rpc('increment_referrals', { user_id: referredBy });
+            }
         } else {
+            console.log("Existing user found.");
             currentUserState = user;
         }
 
@@ -125,15 +136,12 @@ document.addEventListener('DOMContentLoaded', () => {
             button.disabled = true;
             tg.HapticFeedback.impactOccurred('light');
             
-            // EDITED: Now captures the direct response from the function
             const { data: updatedUser, error } = await sb.rpc('watch_ad', { user_id: telegramUserId });
             
             if (error) {
                 tg.showAlert('You have reached your daily ad limit.');
-                console.error("Watch ad error:", error);
             }
             if (updatedUser) {
-                // EDITED: Instantly update the UI with the returned data
                 updateUI(updatedUser);
             }
         });
@@ -156,7 +164,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentUserState.join_bonus) { tg.showAlert("You've already claimed this bonus."); return; }
             e.currentTarget.disabled = true;
             
-            // EDITED: Now captures the direct response
             const { data: updatedUser, error } = await sb.rpc('claim_bonus', { user_id: telegramUserId });
             
             if (error) console.error("Claim bonus error:", error);
@@ -180,9 +187,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- APP ENTRY POINT ---
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
         Telegram.WebApp.ready();
-        initializeApp(window.Telegram.WebApp.initDataUnsafe.user, window.Telegram.WebApp.initDataUnsafe);
+        initializeApp(window.Telegram.WebApp.initDataUnsafe);
     } else {
         console.warn("Telegram script not found. Running in browser test mode.");
-        initializeApp(null, {});
+        initializeApp({});
     }
 });
