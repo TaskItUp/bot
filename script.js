@@ -13,18 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentUserState = {};
     let telegramUserId = null;
 
-    // --- NEW: RENDER FUNCTIONS (Build the UI dynamically) ---
+    // --- RENDER FUNCTIONS ---
     function renderAppStructure() {
-        document.getElementById('app-container').innerHTML = `
-            <div id="home-tab" class="tab-content"></div> <div id="earn-tab" class="tab-content"></div>
-            <div id="withdraw-tab" class="tab-content"></div> <div id="profile-tab" class="tab-content"></div>
-            <button class="refer-fab" id="open-refer-modal-btn" style="display: none;"><i data-feather="gift"></i></button>
-            <div id="refer-modal" class="modal-overlay"></div>`;
-        document.querySelector('.nav-bar').innerHTML = `
-            <a href="#" class="nav-item active" data-tab="home-tab"><i data-feather="home"></i><span>Home</span></a>
-            <a href="#" class="nav-item" data-tab="earn-tab"><i data-feather="dollar-sign"></i><span>Earn</span></a>
-            <a href="#" class="nav-item" data-tab="withdraw-tab"><i data-feather="credit-card"></i><span>Withdraw</span></a>
-            <a href="#" class="nav-item" data-tab="profile-tab"><i data-feather="user"></i><span>Profile</span></a>`;
+        document.getElementById('app-container').innerHTML = `<div id="loading-overlay" class="loading-overlay active"><div class="spinner"></div></div> <div id="home-tab" class="tab-content"></div> <div id="earn-tab" class="tab-content"></div> <div id="withdraw-tab" class="tab-content"></div> <div id="profile-tab" class="tab-content"></div> <button class="refer-fab" id="open-refer-modal-btn" style="display: none;"><i data-feather="gift"></i></button> <div id="refer-modal" class="modal-overlay"></div>`;
+        document.querySelector('.nav-bar').innerHTML = `<a href="#" class="nav-item active" data-tab="home-tab"><i data-feather="home"></i><span>Home</span></a> <a href="#" class="nav-item" data-tab="earn-tab"><i data-feather="dollar-sign"></i><span>Earn</span></a> <a href="#" class="nav-item" data-tab="withdraw-tab"><i data-feather="credit-card"></i><span>Withdraw</span></a> <a href="#" class="nav-item" data-tab="profile-tab"><i data-feather="user"></i><span>Profile</span></a>`;
     }
 
     function renderAllTabs() {
@@ -33,59 +25,44 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('withdraw-tab').innerHTML = `<h2 class="page-title">Withdraw Funds</h2><div class="available-balance-banner">Available Balance: <span class="bold-text"><span id="withdraw-balance">0</span> PEPE</span></div><div class="withdraw-form-card"><h3 class="card-title">Request Withdrawal</h3><div class="input-group"><label for="withdraw-method">Method</label><select id="withdraw-method"><option value="binancepay">Binance Pay (Min: 10,000 PEPE)</option></select></div><div class="input-group"><label for="withdraw-amount">Amount</label><input type="number" id="withdraw-amount" placeholder="e.g., 15000"></div><div class="input-group"><label for="wallet-id">Binance ID or Email</label><input type="text" id="wallet-id" placeholder="Enter your Binance Pay ID or Email"></div><button class="submit-withdrawal-btn" id="withdraw-btn"><i data-feather="send"></i> Submit Request</button></div><div class="transaction-history"><h3 class="section-title">Recent Withdrawals</h3><div id="history-list"><p class="no-history">You have no withdrawal history yet.</p></div></div>`;
         document.getElementById('profile-tab').innerHTML = `<header class="profile-header"><img src="https://i.pravatar.cc/150" alt="User Profile" id="profile-pic-large" class="profile-pic-large"><h3 id="profile-name">User</h3><p id="telegram-username" class="text-muted">@username</p><p class="profile-balance">Balance: <span id="profile-balance">0</span> PEPE</p></header><div class="profile-stats"><h3 class="section-title">Statistics</h3><div class="stat-item"><p><i data-feather="award"></i> Earned So Far</p><p class="stat-value"><span id="earned-so-far">0</span> PEPE</p></div><div class="stat-item"><p><i data-feather="tv"></i> Total Ads Viewed</p><p class="stat-value" id="total-ads-viewed">0</p></div><div class="stat-item"><p><i data-feather="users"></i> Total Referrals</p><p class="stat-value" id="total-refers">0</p></div><div class="stat-item"><p><i data-feather="gift"></i> Referral Earnings</p><p class="stat-value"><span id="refer-earnings">0</span> PEPE</p></div></div>`;
         document.getElementById('refer-modal').innerHTML = `<div class="modal-content"><button class="close-btn" id="close-refer-modal-btn"><i data-feather="x"></i></button><h2 class="modal-title">Refer Friends, Earn 10% More!</h2><div class="referral-stats"><p><strong><span id="refer-count">0</span></strong> Referrals</p><p><strong><span id="popup-refer-earnings">0</span> PEPE</strong> Earned</p></div><div class="referral-link-container"><input type="text" id="referral-link" readonly><button id="copy-referral-btn"><i data-feather="copy"></i></button></div><div class="referral-requirements"><h4>How it works:</h4><ul><li><i data-feather="check-circle"></i> Your friend must join using your unique link.</li><li><i data-feather="check-circle"></i> They must open the app to count as a referral.</li></ul></div></div>`;
-        document.getElementById('home-tab').classList.add('active');
-        document.getElementById('open-refer-modal-btn').style.display = 'flex';
-        feather.replace();
     }
     
     // --- MAIN APP LOGIC ---
     async function initializeApp(tgUser, tgInitData) {
-        console.log("Step 1: Initializing App...");
-        renderAppStructure(); // Build the basic layout first
+        renderAppStructure();
 
         telegramUserId = tgUser ? tgUser.id.toString() : `test_${Date.now()}`;
-        console.log(`Step 2: User ID identified as ${telegramUserId}`);
         
         const { data: user, error } = await sb.from('users').select('*').eq('telegram_id', telegramUserId).single();
-        if (error && error.code !== 'PGRST116') return console.error('FATAL: Could not fetch user data.', error);
+        if (error && error.code !== 'PGRST116') return console.error('FATAL: Could not fetch user.', error);
 
         if (!user) {
-            console.log("Step 3: New user detected. Creating account...");
             const referredBy = tgInitData.start_param || null;
             const newUser = { telegram_id: telegramUserId, first_name: tgUser?.first_name || 'Test User', username: tgUser?.username, referred_by: referredBy };
             
             const { data: createdUser, error: creationError } = await sb.from('users').insert(newUser).select().single();
-            if (creationError) return console.error("FATAL: Failed to create user account.", creationError);
-
+            if (creationError) return console.error("FATAL: Could not create user.", creationError);
             currentUserState = createdUser;
-            if (referredBy) {
-                console.log(`User was referred by ${referredBy}. Incrementing count.`);
-                await sb.rpc('increment_referrals', { user_id: referredBy });
-            }
+            if (referredBy) await sb.rpc('increment_referrals', { user_id: referredBy });
         } else {
-            console.log("Step 3: Existing user found.");
             currentUserState = user;
         }
 
-        console.log("Step 4: Rendering UI with correct user data.");
         renderAllTabs();
         updateUI(currentUserState);
-        
-        console.log("Step 5: Attaching event listeners.");
         addEventListeners();
-
-        console.log("Step 6: Starting real-time listeners and loading history.");
         listenForRealtimeChanges();
         loadWithdrawalHistory();
+        document.getElementById('loading-overlay').classList.remove('active');
+        document.getElementById('home-tab').classList.add('active');
+        document.getElementById('open-refer-modal-btn').style.display = 'flex';
     }
     
     function listenForRealtimeChanges() {
         sb.channel(`public:users:telegram_id=eq.${telegramUserId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
-            console.log('Real-time update received:', payload.new);
             currentUserState = payload.new;
             updateUI(payload.new);
         }).subscribe();
-        
         sb.channel(`public:withdrawals:user_id=eq.${telegramUserId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals' }, loadWithdrawalHistory).subscribe();
     }
 
@@ -123,15 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function loadWithdrawalHistory() {
-        const { data, error } = await sb.from('withdrawals').select('*').eq('user_id', telegramUserId).order('created_at', { ascending: false });
-        if (error) return console.error("Error loading withdrawal history:", error);
-        
+        const { data } = await sb.from('withdrawals').select('*').eq('user_id', telegramUserId).order('created_at', { ascending: false });
         const historyList = document.getElementById('history-list');
         if (data && data.length > 0) {
             historyList.innerHTML = data.map(w => `<div class="history-item ${w.status}"><div class="history-details"><div class="history-amount">${w.amount.toLocaleString()} PEPE</div><div class="history-date">${new Date(w.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div></div><div class="history-status">${w.status}</div></div>`).join('');
-        } else {
-            historyList.innerHTML = `<p class="no-history">You have no withdrawal history yet.</p>`;
-        }
+        } else { historyList.innerHTML = `<p class="no-history">You have no withdrawal history yet.</p>`; }
     }
 
     function addEventListeners() {
@@ -142,21 +115,26 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             e.currentTarget.classList.add('active');
         }));
-
         document.getElementById('open-refer-modal-btn').addEventListener('click', () => { document.getElementById('refer-modal').style.display = 'flex'; });
         document.getElementById('close-refer-modal-btn').addEventListener('click', () => { document.getElementById('refer-modal').style.display = 'none'; });
         document.getElementById('refer-modal').addEventListener('click', (e) => { if (e.target.id === 'refer-modal') document.getElementById('refer-modal').style.display = 'none'; });
         
         document.getElementById('watch-ad-btn').addEventListener('click', async (e) => {
-            if (e.currentTarget.disabled) return;
-            e.currentTarget.disabled = true;
+            const button = e.currentTarget;
+            if (button.disabled) return;
+            button.disabled = true;
             tg.HapticFeedback.impactOccurred('light');
-            const { error } = await sb.rpc('watch_ad', { user_id: telegramUserId });
+            
+            // EDITED: Now captures the direct response from the function
+            const { data: updatedUser, error } = await sb.rpc('watch_ad', { user_id: telegramUserId });
+            
             if (error) {
                 tg.showAlert('You have reached your daily ad limit.');
                 console.error("Watch ad error:", error);
-                // Re-enable button if there's an error and the limit isn't reached
-                if (currentUserState.ads_watched < DAILY_TASK_LIMIT) e.currentTarget.disabled = false;
+            }
+            if (updatedUser) {
+                // EDITED: Instantly update the UI with the returned data
+                updateUI(updatedUser);
             }
         });
 
@@ -177,9 +155,15 @@ document.addEventListener('DOMContentLoaded', () => {
         bonusTaskCard.querySelector('.verify-btn').addEventListener('click', async (e) => {
             if (currentUserState.join_bonus) { tg.showAlert("You've already claimed this bonus."); return; }
             e.currentTarget.disabled = true;
-            const { error } = await sb.rpc('claim_bonus', { user_id: telegramUserId });
+            
+            // EDITED: Now captures the direct response
+            const { data: updatedUser, error } = await sb.rpc('claim_bonus', { user_id: telegramUserId });
+            
             if (error) console.error("Claim bonus error:", error);
-            else tg.showAlert('Bonus of 300 PEPE claimed!');
+            if (updatedUser) {
+                tg.showAlert('Bonus of 300 PEPE claimed!');
+                updateUI(updatedUser);
+            }
         });
 
         document.getElementById('withdraw-btn').addEventListener('click', async () => {
@@ -188,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!amount || !address || amount < 10000) { tg.showAlert('Please enter a valid amount (min 10,000) and your wallet ID.'); return; }
             if (amount > currentUserState.balance) { tg.showAlert('Insufficient balance.'); return; }
             const { error } = await sb.rpc('request_withdrawal', { p_user_id: telegramUserId, p_amount: amount, p_address: address });
-            if (error) { tg.showAlert(error.message); console.error("Withdrawal error:", error); } 
+            if (error) { tg.showAlert(error.message); } 
             else { tg.showAlert('Withdrawal request submitted!'); document.getElementById('withdraw-amount').value = ''; document.getElementById('wallet-id').value = ''; }
         });
     }
